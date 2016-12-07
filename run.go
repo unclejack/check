@@ -42,6 +42,7 @@ var (
 	newBenchMem    = flag.Bool("check.bmem", false, "Report memory benchmarks")
 	newListFlag    = flag.Bool("check.list", false, "List the names of all tests that will be run")
 	newWorkFlag    = flag.Bool("check.work", false, "Display and do not remove the test working directory")
+	abort          = flag.Bool("check.abort", false, "Stop testing the suite if a test has failed")
 )
 
 // TestingT runs all test suites registered with the Suite function,
@@ -60,6 +61,7 @@ func TestingT(testingT *testing.T) {
 		BenchmarkTime: benchTime,
 		BenchmarkMem:  *newBenchMem,
 		KeepWorkDir:   *oldWorkFlag || *newWorkFlag,
+		Abort:         *abort,
 	}
 	if *oldListFlag || *newListFlag {
 		w := bufio.NewWriter(os.Stdout)
@@ -80,8 +82,24 @@ func TestingT(testingT *testing.T) {
 // provided run configuration.
 func RunAll(runConf *RunConf) *Result {
 	result := Result{}
+	skipTests := false
 	for _, suite := range allSuites {
-		result.Add(Run(suite, runConf))
+		var res *Result
+		// a test from one suite has failed and we loop through
+		// all suites to count all of the missed tests
+		if skipTests {
+			res = skipSuite(suite, runConf)
+		} else {
+			res = Run(suite, runConf)
+		}
+
+		result.Add(res)
+		if !runConf.Abort {
+			continue
+		}
+		if res.Failed > 0 || res.Panicked > 0 {
+			skipTests = true
+		}
 	}
 	return &result
 }
@@ -90,6 +108,11 @@ func RunAll(runConf *RunConf) *Result {
 func Run(suite interface{}, runConf *RunConf) *Result {
 	runner := newSuiteRunner(suite, runConf)
 	return runner.run()
+}
+
+func skipSuite(suite interface{}, runConf *RunConf) *Result {
+	runner := newSuiteRunner(suite, runConf)
+	return runner.skip()
 }
 
 // ListAll returns the names of all the test functions registered with the
