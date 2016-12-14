@@ -523,7 +523,7 @@ type suiteRunner struct {
 	benchTime                 time.Duration
 	benchMem                  bool
 	abort                     bool
-	checkTimeout              time.Duration
+	testTimeout               time.Duration
 }
 
 type RunConf struct {
@@ -536,7 +536,7 @@ type RunConf struct {
 	BenchmarkMem  bool
 	KeepWorkDir   bool
 	Abort         bool
-	CheckTimeout  time.Duration
+	TestTimeout   time.Duration
 }
 
 // Create a new suiteRunner able to run all methods in the given suite.
@@ -557,16 +557,16 @@ func newSuiteRunner(suite interface{}, runConf *RunConf) *suiteRunner {
 	suiteValue := reflect.ValueOf(suite)
 
 	runner := &suiteRunner{
-		suite:        suite,
-		output:       newOutputWriter(conf.Output, conf.Stream, conf.Verbose),
-		tracker:      newResultTracker(),
-		benchTime:    conf.BenchmarkTime,
-		benchMem:     conf.BenchmarkMem,
-		tempDir:      &tempDir{},
-		keepDir:      conf.KeepWorkDir,
-		tests:        make([]*methodType, 0, suiteNumMethods),
-		abort:        conf.Abort,
-		checkTimeout: conf.CheckTimeout,
+		suite:       suite,
+		output:      newOutputWriter(conf.Output, conf.Stream, conf.Verbose),
+		tracker:     newResultTracker(),
+		benchTime:   conf.BenchmarkTime,
+		benchMem:    conf.BenchmarkMem,
+		tempDir:     &tempDir{},
+		keepDir:     conf.KeepWorkDir,
+		tests:       make([]*methodType, 0, suiteNumMethods),
+		abort:       conf.Abort,
+		testTimeout: conf.TestTimeout,
 	}
 	if runner.benchTime == 0 {
 		runner.benchTime = 1 * time.Second
@@ -678,26 +678,28 @@ func (runner *suiteRunner) forkCall(method *methodType, kind funcKind, testName 
 		benchMem:  runner.benchMem,
 	}
 	runner.tracker.expectCall(c)
+	var timeout <-chan time.Time
+	if runner.testTimeout != 0 {
+		timeout = time.After(runner.testTimeout)
+	}
 	go (func() {
 		runner.reportCallStarted(c)
 		defer runner.callDone(c)
 		dispatcher(c)
 	})()
+	select {
+	case <-c.done:
+		c.done <- c
+	case <-timeout:
+		panic(fmt.Sprintf("test timed out after %v", runner.testTimeout))
+	}
 	return c
 }
 
 // Same as forkCall(), but wait for call to finish before returning.
 func (runner *suiteRunner) runFunc(method *methodType, kind funcKind, testName string, logb *logger, dispatcher func(c *C)) *C {
-	var timeout <-chan time.Time
-	if runner.checkTimeout != 0 {
-		timeout = time.After(runner.checkTimeout)
-	}
 	c := runner.forkCall(method, kind, testName, logb, dispatcher)
-	select {
-	case <-c.done:
-	case <-timeout:
-		panic(fmt.Sprintf("test timed out after %v", runner.checkTimeout))
-	}
+	<-c.done
 	return c
 }
 
@@ -832,17 +834,8 @@ func (runner *suiteRunner) forkTest(method *methodType) *C {
 
 // Same as forkTest(), but wait for the test to finish before returning.
 func (runner *suiteRunner) runTest(method *methodType) *C {
-	var timeout <-chan time.Time
-	if runner.checkTimeout != 0 {
-		timeout = time.After(runner.checkTimeout)
-	}
 	c := runner.forkTest(method)
 	<-c.done
-	select {
-	case <-c.done:
-	case <-timeout:
-		panic(fmt.Sprintf("test timed out after %v", runner.checkTimeout))
-	}
 	return c
 }
 
