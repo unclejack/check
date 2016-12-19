@@ -2,7 +2,7 @@ package check_test
 
 import (
 	"errors"
-	"gopkg.in/check.v1"
+	"unclejack/check"
 	"reflect"
 	"runtime"
 )

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	. "gopkg.in/check.v1"
+	. "unclejack/check"
 )
 
 var runnerS = Suite(&RunS{})
