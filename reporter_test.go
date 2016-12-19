@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	. "gopkg.in/check.v1"
+	. "unclejack/check"
 )
 
 var _ = Suite(&reporterS{})

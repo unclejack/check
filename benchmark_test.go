@@ -4,7 +4,7 @@ package check_test
 
 import (
 	"time"
-	. "gopkg.in/check.v1"
+	. "unclejack/check"
 )
 
 var benchmarkS = Suite(&BenchmarkS{})

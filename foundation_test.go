@@ -8,7 +8,7 @@ package check_test
 
 import (
 	"fmt"
-	"gopkg.in/check.v1"
+	"unclejack/check"
 	"log"
 	"os"
 	"regexp"
